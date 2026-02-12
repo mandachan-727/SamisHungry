@@ -71,7 +71,7 @@ export class PlayScene {
             }
         } else {
             const chestX = this.canvas.width - 140;
-            if (this.sam.x < chestX - 40) this.sam.x += 2;
+            if (this.sam.x < chestX - 40) this.sam.x += 3; // slightly faster run to chest
         }
     }
 
@@ -174,22 +174,22 @@ export class PlayScene {
                         this.sam['vy'] = 0;
                         this.sam.onGround = true;
                     }
-                    // Lenient scoring: clamp and allow overshoot to trigger chest
                     const newTotal = this.score + it.points;
                     if (newTotal >= GameConfig.getTargetScore()) {
+                        // Consume item, clamp to target, and start chest sequence
                         this.score = GameConfig.getTargetScore();
-                        this.sam.showEmote('yay');
                         this.items.splice(i, 1);
+                        if (this.sam.state !== 'yay') this.sam.showEmote('yay');
                         this.triggerChestSequence();
                         continue;
                     } else {
                         this.score = newTotal;
-                        this.sam.showEmote('yay');
+                        if (this.sam.state !== 'yay') this.sam.showEmote('yay');
                     }
                 } else {
                     const newScore = Math.max(0, this.score + it.points);
                     this.score = newScore;
-                    this.sam.showEmote('ill');
+                    if (this.sam.state !== 'ill') this.sam.showEmote('ill');
                 }
                 this.items.splice(i, 1);
             }

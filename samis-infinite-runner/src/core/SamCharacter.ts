@@ -29,7 +29,12 @@ export class SamCharacter {
             this.y = groundY - this.height;
             this.vy = 0;
             this.onGround = true;
-            if (this.state === 'jump') this.state = 'run1';
+            // Return to run after landing from any non-run/jump state
+            if (this.state === 'jump') {
+                this.state = 'run1';
+            } else if (this.state === 'yay' || this.state === 'ill') {
+                this.state = 'run1';
+            }
         } else {
             this.onGround = false;
         }
@@ -58,7 +63,8 @@ export class SamCharacter {
 
     showEmote(type: 'ill' | 'yay') {
         this.state = type;
-        this.emoteTimer = 0.35;
+        // Shorten emote time to reduce linger for both 'yay' and 'ill'
+        this.emoteTimer = 0.2;
     }
 
     getBounds() {
