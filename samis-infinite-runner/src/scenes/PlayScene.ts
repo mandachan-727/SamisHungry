@@ -25,11 +25,10 @@ export class PlayScene {
     private visualOffsetY = -60; // lift visuals by 30px without changing physics
 
     constructor(private canvas: HTMLCanvasElement, private ctx: CanvasRenderingContext2D, private assets: Record<string, HTMLImageElement>) {
-        // Restore original ground level
-        this.groundY = GameConfig.getScreenDimensions().height - 80;
+        // Ground based on base resolution
+        this.groundY = GameConfig.getBaseDimensions().height - 80;
         this.sam = new SamCharacter(GameConfig.getGravity(), assets);
         this.sam.initialize(this.groundY);
-        // Remove previous direct y tweaks; physics stays tied to groundY
     }
 
     start() {}
@@ -41,10 +40,15 @@ export class PlayScene {
     handleClick(e: MouseEvent) {
         if (!this.chestVisible || this.ended) return;
         const rect = this.canvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left;
-        const my = e.clientY - rect.top;
-        const chestX = this.canvas.width - 140;
-        const chestY = this.groundY - 96; // chest sits on ground
+        const base = GameConfig.getBaseDimensions();
+        const scale = GameConfig.getScale(this.canvas.width, this.canvas.height);
+        const offX = (this.canvas.width - base.width * scale) / 2;
+        const offY = (this.canvas.height - base.height * scale) / 2;
+        // Convert mouse coords to base units
+        const mx = (e.clientX - rect.left - offX) / scale;
+        const my = (e.clientY - rect.top - offY) / scale;
+        const chestX = base.width - 140;
+        const chestY = this.groundY - 96;
         const w = 96, h = 96;
         if (mx >= chestX && mx <= chestX + w && my >= chestY && my <= chestY + h) {
             this.ended = true;
@@ -70,52 +74,80 @@ export class PlayScene {
                 this.triggerChestSequence();
             }
         } else {
-            const chestX = this.canvas.width - 140;
+            const chestX = GameConfig.getBaseDimensions().width - 140;
             if (this.sam.x < chestX - 40) this.sam.x += 3; // slightly faster run to chest
         }
     }
 
     render() {
-        // Background
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        const bg = this.assets.background;
-        if (bg) this.ctx.drawImage(bg, 0, 0, this.canvas.width, this.canvas.height);
-        // Ground line: make transparent by not drawing it
+        const base = GameConfig.getBaseDimensions();
+        const scale = GameConfig.getScale(this.canvas.width, this.canvas.height);
+        const offX = (this.canvas.width - base.width * scale) / 2;
+        const offY = (this.canvas.height - base.height * scale) / 2;
 
-        // Items (visual lift)
+        // Clear and reset
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // Stretch background to full canvas size (fills horizontally)
+        const bg = this.assets.background;
+        if (bg) {
+            this.ctx.drawImage(bg, 0, 0, this.canvas.width, this.canvas.height);
+        }
+
+        // Now render game in base units, centered with uniform scale
+        this.ctx.translate(offX, offY);
+        this.ctx.scale(scale, scale);
+
+        // Items (visual lift in base units)
         for (const it of this.items) {
             const img = this.getItemImage(it.type);
             if (img) this.ctx.drawImage(img, it.x, it.y + this.visualOffsetY, it.w, it.h);
         }
-        // Chest — do NOT apply visualOffsetY so it sits exactly at groundY - chestH
+        // Chest (base units)
         if (this.chestVisible) {
             const chestImg = this.assets.chest;
-            const chestX = this.canvas.width - 140;
+            const chestX = base.width - 140;
             const chestW = 96;
             const chestH = 96;
-            const chestY = this.groundY - chestH - 40; // fixed: use chest height
+            const chestY = this.groundY - chestH - 40;
             if (chestImg) this.ctx.drawImage(chestImg, chestX, chestY, chestW, chestH);
-            this.ctx.fillStyle = '#fff';
-            this.ctx.font = '20px sans-serif';
+            this.ctx.fillStyle = '#ffe082';
+            this.ctx.font = '20px "Bitova", sans-serif';
             this.ctx.fillText('Click chest!', chestX - 10, chestY - 10);
         }
-        // Sam (visual lift). We draw Sam higher, but physics stays the same.
-        // Temporarily translate context to apply visual Y offset only to Sam.
+        // Sam (visual lift)
         this.ctx.save();
         this.ctx.translate(0, this.visualOffsetY);
         this.sam.render(this.ctx);
         this.ctx.restore();
-        // UI
-        this.ctx.fillStyle = '#ffffff';
-        this.ctx.font = '24px sans-serif';
+        // UI in base units
+        this.ctx.fillStyle = '#ffe082';
+        this.ctx.font = '24px "Bitova", sans-serif';
         this.ctx.fillText(`Score: ${this.score}`, 16, 32);
+
+        // If ended, draw overlay and centered message using full canvas coords
         if (this.ended) {
+            // Reset transform to draw overlay to full window size
+            this.ctx.setTransform(1, 0, 0, 1, 0, 0);
             this.ctx.fillStyle = 'rgba(0,0,0,0.6)';
             this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-            this.ctx.fillStyle = '#fff';
-            this.ctx.font = '32px sans-serif';
-            this.ctx.fillText('Yay! Sam found the treasure!', 220, 240);
+            this.ctx.fillStyle = '#ffd54f';
+            this.ctx.font = '32px "Bitova", sans-serif';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText('Yay! Sam found the treasure!', this.canvas.width / 2, this.canvas.height / 2);
         }
+    }
+
+    onResize(width: number, height: number) {
+        this.canvas.width = width;
+        this.canvas.height = height;
+        // Ground remains in base units; keep Sam on ground
+        const sb = this.sam.getBounds();
+        this.sam['y'] = this.groundY - sb.h;
+        this.sam['vy'] = 0;
+        this.sam.onGround = true;
     }
 
     private getItemImage(type: ItemType) {
@@ -148,7 +180,7 @@ export class PlayScene {
         const item: Item = {
             type: t.type,
             points: t.points,
-            x: this.canvas.width + 20,
+            x: GameConfig.getBaseDimensions().width + 20,
             y,
             w,
             h,
@@ -163,41 +195,45 @@ export class PlayScene {
     }
 
     private checkCollisions() {
+        // If already transitioning to chest or ended, ignore collisions
+        if (this.runningToChest || this.ended) return;
         const sb = this.sam.getBounds();
+        const target = GameConfig.getTargetScore();
         for (let i = this.items.length - 1; i >= 0; i--) {
             const it = this.items[i];
             if (this.aabb(sb, it)) {
                 if (it.points > 0) {
+                    // Platforming assist
                     const feetY = sb.y + sb.h;
                     if (feetY <= it.y + 10 && this.sam.onGround === false && this.sam['vy'] > 0) {
                         this.sam['y'] = it.y - sb.h;
                         this.sam['vy'] = 0;
                         this.sam.onGround = true;
                     }
-                    const newTotal = this.score + it.points;
-                    if (newTotal >= GameConfig.getTargetScore()) {
-                        // Consume item, clamp to target, and start chest sequence
-                        this.score = GameConfig.getTargetScore();
-                        this.items.splice(i, 1);
-                        if (this.sam.state !== 'yay') this.sam.showEmote('yay');
+                    // Clamp addition to remaining points and consume item
+                    const remaining = Math.max(0, target - this.score);
+                    const add = Math.min(remaining, it.points);
+                    this.score += add;
+                    this.sam.showEmote('yay');
+                    this.items.splice(i, 1);
+                    if (this.score >= target) {
+                        // Ensure exact target and start chest sequence; stop processing further items this frame
+                        this.score = target;
                         this.triggerChestSequence();
-                        continue;
-                    } else {
-                        this.score = newTotal;
-                        if (this.sam.state !== 'yay') this.sam.showEmote('yay');
+                        break;
                     }
                 } else {
-                    const newScore = Math.max(0, this.score + it.points);
-                    this.score = newScore;
-                    if (this.sam.state !== 'ill') this.sam.showEmote('ill');
+                    // Negative items still reduce score but never below 0
+                    this.score = Math.max(0, this.score + it.points);
+                    this.sam.showEmote('ill');
+                    this.items.splice(i, 1);
                 }
-                this.items.splice(i, 1);
             }
         }
     }
 
     private aabb(a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) {
-        return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+        return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + b.h > b.y;
     }
 
     private triggerChestSequence() {

@@ -3,12 +3,14 @@
 import { GameConfig } from './core/GameConfig';
 import { BootScene } from './scenes/BootScene';
 import { PlayScene } from './scenes/PlayScene';
+import { TitleScene } from './scenes/TitleScene';
 
 class Game {
     private config = new GameConfig();
     private canvas!: HTMLCanvasElement;
     private ctx!: CanvasRenderingContext2D;
     private currentScene!: PlayScene;
+    private titleScene!: TitleScene;
 
     constructor() {
         this.setupCanvas();
@@ -17,10 +19,11 @@ class Game {
 
     private setupCanvas() {
         this.canvas = document.createElement('canvas');
+        document.body.appendChild(this.canvas);
+        // Initial size
         const { width, height } = GameConfig.getScreenDimensions();
         this.canvas.width = width;
         this.canvas.height = height;
-        document.body.appendChild(this.canvas);
         const ctx = this.canvas.getContext('2d');
         if (!ctx) throw new Error('Canvas 2D context unavailable');
         this.ctx = ctx;
@@ -29,25 +32,62 @@ class Game {
     private async initialize() {
         const boot = new BootScene();
         const assets = await boot.loadAssets();
-        this.currentScene = new PlayScene(this.canvas, this.ctx, assets);
+        // Create title scene first with assets
+        this.titleScene = new TitleScene(this.canvas, this.ctx, assets);
         this.bindInputs();
-        this.startGameLoop();
+        this.bindResize();
+        this.startGameLoop(() => {
+            // When title ready, switch to play scene once
+            if (!this.currentScene && this.titleScene.ready) {
+                this.currentScene = new PlayScene(this.canvas, this.ctx, assets);
+                const { width, height } = GameConfig.getScreenDimensions();
+                this.currentScene.onResize(width, height);
+            }
+        });
     }
 
     private bindInputs() {
         window.addEventListener('keydown', (e) => {
-            if (e.code === 'Space' || e.code === 'ArrowUp') this.currentScene.handleJump();
+            if (!this.currentScene) {
+                this.titleScene.handleKey(e.code);
+            } else {
+                if (e.code === 'Space' || e.code === 'ArrowUp') this.currentScene.handleJump();
+            }
         });
-        this.canvas.addEventListener('click', (e) => this.currentScene.handleClick(e));
+        this.canvas.addEventListener('click', (e) => {
+            if (!this.currentScene) {
+                this.titleScene.handleClick();
+            } else {
+                this.currentScene.handleClick(e);
+            }
+        });
     }
 
-    private startGameLoop() {
+    private bindResize() {
+        const resize = () => {
+            const { width, height } = GameConfig.getScreenDimensions();
+            if (this.currentScene) {
+                this.currentScene.onResize(width, height);
+            }
+        };
+        window.addEventListener('resize', resize);
+        window.addEventListener('orientationchange', resize);
+    }
+
+    private startGameLoop(onPreUpdate?: () => void) {
         let last = performance.now();
         const loop = (now: number) => {
             const dt = (now - last) / 1000; // seconds
             last = now;
-            this.currentScene.update(dt);
-            this.currentScene.render();
+            // Allow pre-update hook every frame (used to transition from title)
+            if (onPreUpdate) onPreUpdate();
+            if (!this.currentScene) {
+                this.titleScene.update(dt);
+                this.titleScene.render();
+            } else {
+                this.currentScene.update(dt);
+                this.currentScene.render();
+            }
             requestAnimationFrame(loop);
         };
         requestAnimationFrame(loop);
