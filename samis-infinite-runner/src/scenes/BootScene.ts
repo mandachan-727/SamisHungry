@@ -14,7 +14,10 @@ export class BootScene {
         samRun2: '/assets/sam-run-2.png',
         samJump: '/assets/sam-jump.png',
         samIll: '/assets/sam-ill.png',
-        samYay: '/assets/sam-yay.png'
+        samYay: '/assets/sam-yay.png',
+        // New assets for end sequence
+        minhYay: '/assets/minh-yay.png',
+        weKiss: '/assets/we-kiss.png'
     };
 
     async loadAssets(): Promise<Record<string, HTMLImageElement>> {

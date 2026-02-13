@@ -23,6 +23,13 @@ export class PlayScene {
     private ended = false;
     private spawningEnabled = true;
     private visualOffsetY = -60; // lift visuals by 30px without changing physics
+    private kissVisible = false; // show we-kiss after clicking Amanda
+    // Amanda/kiss sizing and baseline
+    private amandaW = 70;
+    private amandaH = 50;
+    private kissW = 96;
+    private kissH = 60;
+    private amandaBaselineOffset = -35; // adjust if needed
 
     constructor(private canvas: HTMLCanvasElement, private ctx: CanvasRenderingContext2D, private assets: Record<string, HTMLImageElement>) {
         // Ground based on base resolution
@@ -37,6 +44,25 @@ export class PlayScene {
         if (!this.runningToChest && !this.ended) this.sam.jump();
     }
 
+    // Compute Amanda rect in base units; includeVisual applies the same visual Y lift used in rendering
+    private getAmandaRect(includeVisual = false) {
+        const base = GameConfig.getBaseDimensions();
+        const x = base.width - 140;
+        const yBase = this.groundY - this.amandaH - 40 - this.amandaBaselineOffset;
+        const y = includeVisual ? yBase + this.visualOffsetY : yBase;
+        return { x, y, w: this.amandaW, h: this.amandaH };
+    }
+
+    // Compute kiss rect bottom-aligned to Amanda
+    private getKissRect(includeVisual = false) {
+        const amanda = this.getAmandaRect(false);
+        const bottom = amanda.y + amanda.h;
+        const x = amanda.x - (this.kissW - this.amandaW) / 2;
+        const yBase = bottom - this.kissH;
+        const y = includeVisual ? yBase + this.visualOffsetY : yBase;
+        return { x, y, w: this.kissW, h: this.kissH };
+    }
+
     handleClick(e: MouseEvent) {
         if (!this.chestVisible || this.ended) return;
         const rect = this.canvas.getBoundingClientRect();
@@ -44,14 +70,13 @@ export class PlayScene {
         const scale = GameConfig.getScale(this.canvas.width, this.canvas.height);
         const offX = (this.canvas.width - base.width * scale) / 2;
         const offY = (this.canvas.height - base.height * scale) / 2;
-        // Convert mouse coords to base units
         const mx = (e.clientX - rect.left - offX) / scale;
         const my = (e.clientY - rect.top - offY) / scale;
-        const chestX = base.width - 140;
-        const chestY = this.groundY - 96;
-        const w = 96, h = 96;
-        if (mx >= chestX && mx <= chestX + w && my >= chestY && my <= chestY + h) {
-            this.ended = true;
+        // Use the same visual-lift-adjusted rect for click hitbox
+        const a = this.getAmandaRect(true);
+        if (mx >= a.x && mx <= a.x + a.w && my >= a.y && my <= a.y + a.h) {
+            this.kissVisible = true;
+            this.ended = true; // stop updates
         }
     }
 
@@ -104,30 +129,44 @@ export class PlayScene {
             const img = this.getItemImage(it.type);
             if (img) this.ctx.drawImage(img, it.x, it.y + this.visualOffsetY, it.w, it.h);
         }
-        // Chest (base units)
+        // Amanda/kiss (end sequence) in base units
         if (this.chestVisible) {
-            const chestImg = this.assets.chest;
-            const chestX = base.width - 140;
-            const chestW = 96;
-            const chestH = 96;
-            const chestY = this.groundY - chestH - 40;
-            if (chestImg) this.ctx.drawImage(chestImg, chestX, chestY, chestW, chestH);
-            this.ctx.fillStyle = '#ffe082';
-            this.ctx.font = '20px "Bitova", sans-serif';
-            this.ctx.fillText('Click chest!', chestX - 10, chestY - 10);
+            if (!this.kissVisible) {
+                const a = this.getAmandaRect(false);
+                // Draw Amanda with same visual Y lift as Sam/items
+                this.ctx.save();
+                this.ctx.translate(0, this.visualOffsetY);
+                const amandaImg = this.assets.minhYay;
+                if (amandaImg) this.ctx.drawImage(amandaImg, a.x, a.y, a.w, a.h);
+                // Prompt above Amanda
+                this.ctx.fillStyle = '#ffe082';
+                this.ctx.font = '14px "Bitova", sans-serif';
+                const promptX = a.x - 4;
+                const promptY = a.y - 28;
+                this.ctx.fillText('Click on', promptX, promptY);
+                this.ctx.fillText('Amanda', promptX, promptY + 14);
+                this.ctx.restore();
+            } else {
+                const k = this.getKissRect(false);
+                this.ctx.save();
+                this.ctx.translate(0, this.visualOffsetY);
+                const kissImg = this.assets.weKiss;
+                if (kissImg) this.ctx.drawImage(kissImg, k.x, k.y, k.w, k.h);
+                this.ctx.restore();
+            }
         }
-        // Sam (visual lift)
+        // Sam (visual lift) — hide Sam once kiss appears
         this.ctx.save();
         this.ctx.translate(0, this.visualOffsetY);
-        this.sam.render(this.ctx);
+        if (!this.kissVisible) this.sam.render(this.ctx);
         this.ctx.restore();
         // UI in base units
         this.ctx.fillStyle = '#ffe082';
         this.ctx.font = '24px "Bitova", sans-serif';
         this.ctx.fillText(`Score: ${this.score}`, 16, 32);
 
-        // If ended, draw overlay and centered message using full canvas coords
-        if (this.ended) {
+        // If ended, optional overlay (suppress when kiss is shown)
+        if (this.ended && !this.kissVisible) {
             // Reset transform to draw overlay to full window size
             this.ctx.setTransform(1, 0, 0, 1, 0, 0);
             this.ctx.fillStyle = 'rgba(0,0,0,0.6)';
@@ -237,10 +276,10 @@ export class PlayScene {
     }
 
     private triggerChestSequence() {
-        // Do not blank the screen; just stop gameplay and show chest
+        // Do not blank the screen; just stop gameplay and show Amanda
         this.runningToChest = true;
         this.spawningEnabled = false;
         this.items = [];
-        this.chestVisible = true;
+        this.chestVisible = true; // repurposed to mean Amanda visible
     }
 }
