@@ -11,6 +11,7 @@ export class SamCharacter {
     state: SamState = 'default';
     private runFrame = 0;
     private emoteTimer = 0;
+    private emoteLock = false; // prevent state overrides while an emote is active
 
     constructor(private gravity: number, private assets: Record<string, HTMLImageElement>) {}
 
@@ -29,11 +30,9 @@ export class SamCharacter {
             this.y = groundY - this.height;
             this.vy = 0;
             this.onGround = true;
-            // Return to run after landing from any non-run/jump state
-            if (this.state === 'jump') {
-                this.state = 'run1';
-            } else if (this.state === 'yay' || this.state === 'ill') {
-                this.state = 'run1';
+            // Return to running after landing unless an emote is locked
+            if (!this.emoteLock && this.state !== 'ill') {
+                if (this.state === 'jump' || this.state === 'yay') this.state = 'run1';
             }
         } else {
             this.onGround = false;
@@ -46,10 +45,14 @@ export class SamCharacter {
                 this.runFrame = 0;
             }
         }
-        // Emote timeout
+        // Emote timing
         if (this.emoteTimer > 0) {
             this.emoteTimer -= dt;
-            if (this.emoteTimer <= 0 && this.onGround) this.state = 'run1';
+            if (this.emoteTimer <= 0) {
+                this.emoteLock = false;
+                // When emote ends, if on ground and not ill, return to run
+                if (this.onGround && this.state !== 'ill') this.state = 'run1';
+            }
         }
     }
 
@@ -62,9 +65,12 @@ export class SamCharacter {
     }
 
     showEmote(type: 'ill' | 'yay') {
+        // Set emote state and lock it for a minimum display time
         this.state = type;
-        // Shorten emote time to reduce linger for both 'yay' and 'ill'
-        this.emoteTimer = 0.2;
+        // Different minimum display times: yay stays the same, ill is 0.05s shorter
+        const minTime = type === 'ill' ? 0.20 : 0.25;
+        this.emoteTimer = Math.max(this.emoteTimer, minTime);
+        this.emoteLock = true;
     }
 
     getBounds() {

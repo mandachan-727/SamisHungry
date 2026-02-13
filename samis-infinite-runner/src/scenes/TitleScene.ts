@@ -4,6 +4,26 @@ export class TitleScene {
     ready = false;
     constructor(private canvas: HTMLCanvasElement, private ctx: CanvasRenderingContext2D, private assets?: Record<string, HTMLImageElement>) {}
 
+    private drawOutlinedText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, font: string, fillColor: string, outlineColor = '#000', outlineSize = 2) {
+        ctx.save();
+        ctx.font = font;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        // Outline (draw slightly larger/behind)
+        ctx.fillStyle = outlineColor;
+        ctx.translate(0, 0);
+        ctx.shadowColor = 'transparent';
+        // Simulate thickness by drawing multiple offsets
+        ctx.fillText(text, x + outlineSize, y);
+        ctx.fillText(text, x - outlineSize, y);
+        ctx.fillText(text, x, y + outlineSize);
+        ctx.fillText(text, x, y - outlineSize);
+        // Fill main text on top
+        ctx.fillStyle = fillColor;
+        ctx.fillText(text, x, y);
+        ctx.restore();
+    }
+
     handleClick() {
         // Click optional; keep for convenience
         this.ready = true;
@@ -47,22 +67,12 @@ export class TitleScene {
             this.ctx.restore();
         }
 
-        // Title text centered using Bitova, with subtle shadow for contrast
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'middle';
-        this.ctx.font = '64px "Bitova", sans-serif';
-        this.ctx.fillStyle = '#ffd54f'; // warm yellow for snowy background contrast
-        this.ctx.shadowColor = 'rgba(0,0,0,0.6)';
-        this.ctx.shadowBlur = 0;
-        this.ctx.shadowOffsetX = 2;
-        this.ctx.shadowOffsetY = 2;
-        this.ctx.fillText('Eat, Sam!', base.width / 2, base.height / 2 - 120);
-        this.ctx.font = '24px "Bitova", sans-serif';
-        this.ctx.fillStyle = '#ffe082';
-        this.ctx.fillText('Press Space or Enter to start', base.width / 2, base.height / 2 - 70);
-        // Reset shadow
-        this.ctx.shadowColor = 'transparent';
-        this.ctx.shadowOffsetX = 0;
-        this.ctx.shadowOffsetY = 0;
+        // Title text centered using Bitova
+        const titleX = base.width / 2;
+        const titleY = base.height / 2 - 120;
+        this.drawOutlinedText(this.ctx, 'Eat, Sam!', titleX, titleY, '64px "Bitova", sans-serif', '#ffd54f');
+        // Subtitle
+        const subY = base.height / 2 - 70;
+        this.drawOutlinedText(this.ctx, 'Press Space or Enter to start', titleX, subY, '24px "Bitova", sans-serif', '#ffe082');
     }
 }

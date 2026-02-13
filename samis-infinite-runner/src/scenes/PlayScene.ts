@@ -44,6 +44,8 @@ export class PlayScene {
         if (!this.runningToChest && !this.ended) this.sam.jump();
     }
 
+    isEnded() { return this.ended; }
+
     // Compute Amanda rect in base units; includeVisual applies the same visual Y lift used in rendering
     private getAmandaRect(includeVisual = false) {
         const base = GameConfig.getBaseDimensions();
@@ -104,6 +106,23 @@ export class PlayScene {
         }
     }
 
+    private drawOutlinedText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, font: string, fillColor: string, outlineColor = '#000', outlineSize = 2, align: CanvasTextAlign = 'left') {
+        ctx.save();
+        ctx.font = font;
+        ctx.textAlign = align;
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = outlineColor;
+        // Outline using multiple offsets
+        ctx.fillText(text, x + outlineSize, y);
+        ctx.fillText(text, x - outlineSize, y);
+        ctx.fillText(text, x, y + outlineSize);
+        ctx.fillText(text, x, y - outlineSize);
+        // Fill top
+        ctx.fillStyle = fillColor;
+        ctx.fillText(text, x, y);
+        ctx.restore();
+    }
+
     render() {
         const base = GameConfig.getBaseDimensions();
         const scale = GameConfig.getScale(this.canvas.width, this.canvas.height);
@@ -139,12 +158,10 @@ export class PlayScene {
                 const amandaImg = this.assets.minhYay;
                 if (amandaImg) this.ctx.drawImage(amandaImg, a.x, a.y, a.w, a.h);
                 // Prompt above Amanda
-                this.ctx.fillStyle = '#ffe082';
-                this.ctx.font = '14px "Bitova", sans-serif';
                 const promptX = a.x - 4;
-                const promptY = a.y - 28;
-                this.ctx.fillText('Click on', promptX, promptY);
-                this.ctx.fillText('Amanda', promptX, promptY + 14);
+                const promptY = a.y - 34; // higher baseline for more spacing
+                this.drawOutlinedText(this.ctx, 'Click on', promptX, promptY, '14px "Bitova", sans-serif', '#ffe082');
+                this.drawOutlinedText(this.ctx, 'Amanda!', promptX, promptY + 18, '14px "Bitova", sans-serif', '#ffe082');
                 this.ctx.restore();
             } else {
                 const k = this.getKissRect(false);
@@ -161,21 +178,22 @@ export class PlayScene {
         if (!this.kissVisible) this.sam.render(this.ctx);
         this.ctx.restore();
         // UI in base units
-        this.ctx.fillStyle = '#ffe082';
-        this.ctx.font = '24px "Bitova", sans-serif';
-        this.ctx.fillText(`Score: ${this.score}`, 16, 32);
+        if (!this.kissVisible) {
+            this.drawOutlinedText(this.ctx, `Score: ${this.score}`, 16, 48, '24px "Bitova", sans-serif', '#ffe082');
+        }
 
         // If ended, optional overlay (suppress when kiss is shown)
-        if (this.ended && !this.kissVisible) {
+        if (this.ended) {
             // Reset transform to draw overlay to full window size
             this.ctx.setTransform(1, 0, 0, 1, 0, 0);
             this.ctx.fillStyle = 'rgba(0,0,0,0.6)';
             this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-            this.ctx.fillStyle = '#ffd54f';
-            this.ctx.font = '32px "Bitova", sans-serif';
-            this.ctx.textAlign = 'center';
-            this.ctx.textBaseline = 'middle';
-            this.ctx.fillText('Yay! Sam found the treasure!', this.canvas.width / 2, this.canvas.height / 2);
+            if (this.kissVisible) {
+                this.drawOutlinedText(this.ctx, 'Hit Space to play again!', this.canvas.width / 2, this.canvas.height / 2, '28px "Bitova", sans-serif', '#ffd54f', '#000', 2, 'center');
+            } else {
+                const msg = 'Yay! Sam found the treasure!';
+                this.drawOutlinedText(this.ctx, msg, this.canvas.width / 2, this.canvas.height / 2, '32px "Bitova", sans-serif', '#ffd54f', '#000', 2, 'center');
+            }
         }
     }
 

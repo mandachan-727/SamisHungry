@@ -34,7 +34,7 @@ class Game {
         const assets = await boot.loadAssets();
         // Create title scene first with assets
         this.titleScene = new TitleScene(this.canvas, this.ctx, assets);
-        this.bindInputs();
+        this.bindInputs(assets);
         this.bindResize();
         this.startGameLoop(() => {
             // When title ready, switch to play scene once
@@ -46,12 +46,22 @@ class Game {
         });
     }
 
-    private bindInputs() {
+    private bindInputs(assets: Record<string, HTMLImageElement>) {
         window.addEventListener('keydown', (e) => {
             if (!this.currentScene) {
                 this.titleScene.handleKey(e.code);
             } else {
-                if (e.code === 'Space' || e.code === 'ArrowUp') this.currentScene.handleJump();
+                if (e.code === 'Space' || e.code === 'Enter') {
+                    if (this.currentScene.isEnded()) {
+                        // Restart: recreate PlayScene and reset
+                        this.currentScene = new PlayScene(this.canvas, this.ctx, assets);
+                        const { width, height } = GameConfig.getScreenDimensions();
+                        this.currentScene.onResize(width, height);
+                        return;
+                    }
+                    this.currentScene.handleJump();
+                }
+                if (e.code === 'ArrowUp') this.currentScene.handleJump();
             }
         });
         this.canvas.addEventListener('click', (e) => {
